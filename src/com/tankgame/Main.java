@@ -10,13 +10,12 @@ import java.io.File;
 public class Main {
     public static JFrame gameFrame;
     public static BufferedImage startImg;
-    public static boolean isFullScreen = false;
 
-    public static void main(String[] args) {
+    static void main() {
         SwingUtilities.invokeLater(() -> {
             try {
                 startImg = ImageIO.read(new File("images/cs.PNG"));
-            } catch (Exception e) {}
+            } catch (Exception _) {}
             showStartUI();
         });
     }
@@ -42,7 +41,7 @@ public class Main {
         JButton startBtn = new JButton("开始游戏");
         startBtn.setBounds(320, 250, 160, 50);
         startBtn.setFont(new Font("黑体", Font.BOLD, 22));
-        startBtn.addActionListener(e -> {
+        startBtn.addActionListener(_ -> {
             startFrame.dispose();
             startGame();
         });
@@ -56,13 +55,11 @@ public class Main {
         gameFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         gameFrame.setSize(1280, 960);
         gameFrame.setLocationRelativeTo(null);
-        gameFrame.setResizable(false);
+        gameFrame.setResizable(true);
         GamePanel panel = new GamePanel();
         gameFrame.add(panel);
         gameFrame.setVisible(true);
         panel.requestFocusInWindow();
     }
 
-    public static void toggleFullScreen() {}
-    public static void toggleWindowSize() {}
 }

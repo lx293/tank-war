@@ -2,11 +2,13 @@ package com.tankgame.audio;
 
 public class SoundManager {
     private static SoundManager instance;
-    private AudioPlayer bgm, fire;
+    private final AudioPlayer bgm;
+    private final AudioPlayer fire;
 
     private SoundManager() {
-        bgm = new AudioPlayer("sounds/bj.wav", true);
-        fire = new AudioPlayer("sounds/fs.wav", false);
+        // 直接指向你项目里的 sounds 文件夹下的文件
+        bgm = new AudioPlayer("sounds/bj.wav");
+        fire = new AudioPlayer("sounds/fs.wav");
     }
 
     public static SoundManager getInstance() {
@@ -17,7 +19,7 @@ public class SoundManager {
     }
 
     public void playBackgroundMusic() {
-        bgm.play();
+        bgm.loop();
     }
 
     public void stopBackgroundMusic() {
@@ -28,8 +30,4 @@ public class SoundManager {
         fire.play();
     }
 
-    public void releaseAll() {
-        bgm.close();
-        fire.close();
-    }
 }
