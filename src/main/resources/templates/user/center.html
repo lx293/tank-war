@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - 小说阅读网</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .center-box {
+            max-width: 700px;
+            margin: 50px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .center-box h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .center-box h3 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .user-base-info {
+            text-align: center;
+            color: #666;
+            font-size: 15px;
+            margin-bottom: 10px;
+        }
+        .shelf-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .shelf-item:hover {
+            background: #f8f8ff;
+        }
+        .shelf-cover {
+            width: 60px;
+            height: 80px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .shelf-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .shelf-info {
+            flex: 1;
+        }
+        .shelf-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        .shelf-author {
+            font-size: 13px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .shelf-progress {
+            font-size: 13px;
+            color: #667eea;
+            margin-top: 4px;
+        }
+        .shelf-action {
+            padding: 8px 15px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-logout {
+            display: block;
+            margin: 30px auto 0;
+            padding: 10px 40px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <div class="logo">📚 <a href="/">小说阅读网</a></div>
+        <div class="nav">
+            <a href="/">首页</a>
+        </div>
+    </div>
+</div>
+
+<div class="center-box">
+    <h2>个人中心</h2>
+    <div id="userInfo">
+        <div class="loading">加载中...</div>
+    </div>
+
+    <h3>📚 我的书架</h3>
+    <div id="shelfList">
+        <div class="loading">加载中...</div>
+    </div>
+
+    <button class="btn-logout" onclick="logout()">退出登录</button>
+</div>
+
+<script src="/static/js/common.js"></script>
+<script>
+    window.onload = function() {
+        loadUserInfo();
+        loadShelf();
+    };
+
+    function loadUserInfo() {
+        fetch('/api/user/info')
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200 && result.data) {
+                    const u = result.data;
+                    document.getElementById('userInfo').innerHTML = `
+                        <div class="user-base-info">
+                            <p>👤 用户名：${u.username}</p>
+                            <p>📝 昵称：${u.nickname || u.username}</p>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('userInfo').innerHTML = '<p style="text-align:center;">请先登录</p>';
+                }
+            });
+    }
+
+    function loadShelf() {
+        fetch('/api/bookshelf/list')
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200 && result.data && result.data.length > 0) {
+                    renderShelf(result.data);
+                } else if (result.code === 401) {
+                    document.getElementById('shelfList').innerHTML = '<p style="text-align:center;color:#999;">请先登录</p>';
+                } else {
+                    document.getElementById('shelfList').innerHTML = '<p style="text-align:center;color:#999;">书架空空如也，去首页看看吧~</p>';
+                }
+            });
+    }
+
+    function renderShelf(items) {
+        document.getElementById('shelfList').innerHTML = items.map(item => {
+            const coverUrl = item.coverUrl || '';
+            const coverHtml = coverUrl
+                ? `<img src="${coverUrl}" onerror="this.onerror=null;this.parentElement.style.background=getRandomColor();this.parentElement.innerHTML='${item.title.charAt(0)}'">`
+                : item.title.charAt(0);
+            return `
+                <div class="shelf-item" onclick="goRead(${item.novelId}, ${item.lastReadChapterId || 0}, ${item.lastReadChapterNo || 0})">
+                    <div class="shelf-cover" style="background: ${getRandomColor()};">
+                        ${coverHtml}
+                    </div>
+                    <div class="shelf-info">
+                        <div class="shelf-title">${item.title}</div>
+                        <div class="shelf-author">✍️ ${item.author || '佚名'}</div>
+                        <div class="shelf-progress">📖 上次读到：${item.lastReadChapterTitle || '未阅读'}</div>
+                    </div>
+                    <button class="shelf-action" onclick="event.stopPropagation();removeShelf(${item.novelId})">移出</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 点击书架跳转：如果有阅读记录，直接跳到那一章
+    function goRead(novelId, chapterId, chapterNo) {
+        if (chapterNo > 0) {
+            window.location.href = '/reader/' + novelId + '/' + chapterNo;
+        } else {
+            window.location.href = '/novel/' + novelId;
+        }
+    }
+
+    function removeShelf(novelId) {
+        if (!confirm('确定移除这本书？')) return;
+        fetch('/api/bookshelf/remove/' + novelId, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200) {
+                    loadShelf();
+                }
+            });
+    }
+
+    function logout() {
+        if (!confirm('确定退出登录？')) return;
+        fetch('/api/user/logout')
+            .then(res => res.json())
+            .then(result => {
+                window.location.href = '/';
+            });
+    }
+</script>
+</body>
+</html>

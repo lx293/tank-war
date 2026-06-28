@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小说详情 - 小说阅读网</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .reader-content {
+            font-size: 18px;
+            line-height: 2;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            min-height: 300px;
+        }
+        .btn-full {
+            display: block;
+            margin: 20px auto;
+            padding: 12px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .btn-full:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-shelf {
+            padding: 12px 30px;
+            border-radius: 25px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-shelf:hover {
+            background: #667eea;
+            color: white;
+        }
+        .btn-shelf.added {
+            background: #4CAF50;
+            color: white;
+            border: none;
+        }
+        .comment-item {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .comment-user {
+            font-weight: bold;
+            color: #667eea;
+        }
+        .comment-time {
+            font-size: 12px;
+            color: #999;
+        }
+        .comment-content {
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="container">
+        <div class="logo">📚 <a href="/">小说阅读网</a></div>
+        <div class="nav">
+            <a href="/">首页</a>
+            <a href="javascript:history.back()">返回</a>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="novel-detail" id="novelDetail">
+        <div class="loading">加载中...</div>
+    </div>
+
+    <div class="novel-detail" style="margin-top: 20px;" id="contentArea">
+        <div class="loading">加载中...</div>
+    </div>
+
+    <!-- 评论区 -->
+    <div class="novel-detail" style="margin-top: 20px;" id="commentArea">
+        <h2 class="section-title">💬 评论区</h2>
+        <div id="commentForm" style="margin-bottom:20px;">
+                <textarea id="commentInput" rows="3" placeholder="写下你的评论..."
+                          style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;"></textarea>
+            <button class="btn btn-primary" onclick="submitComment()" style="margin-top:10px;">发表评论</button>
+        </div>
+        <div id="commentList">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/common.js"></script>
+<script>
+    const path = window.location.pathname;
+    const novelId = path.split('/')[2];
+    const isReader = path.startsWith('/reader/');
+    const chapterNo = isReader ? path.split('/')[3] : null;
+
+    window.onload = function() {
+        loadNovelDetail();
+        if (isReader) {
+            loadChapterContent();
+        } else {
+            loadChapterList();
+            loadComments();
+        }
+    };
+
+    function loadNovelDetail() {
+        fetch(`/api/novel/detail/${novelId}`)
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200 && result.data) {
+                    renderNovelDetail(result.data);
+                    checkShelfStatus();
+                }
+            });
+    }
+
+    function renderNovelDetail(novel) {
+        document.title = novel.title + ' - 小说阅读网';
+        const coverUrl = novel.coverUrl || '';
+        document.getElementById('novelDetail').innerHTML = `
+            <div class="detail-header">
+                <div class="detail-cover" style="background: ${getRandomColor()};">
+                    ${coverUrl ? `<img src="${coverUrl}" style="width:100%;height:100%;object-fit:cover;">` : novel.title.charAt(0)}
+                </div>
+                <div class="detail-info">
+                    <h1 class="detail-title">${novel.title}</h1>
+                    <div class="detail-meta">
+                        <span>✍️ ${novel.author || '佚名'}</span>
+                        <span>📊 ${novel.status === 1 ? '已完结' : '连载中'}</span>
+                        <span>👁️ ${formatNumber(novel.clickCount || 0)} 点击</span>
+                        <span>📝 ${formatNumber(novel.wordCount || 0)} 字</span>
+                    </div>
+                    <div class="detail-description">${novel.description || '暂无简介'}</div>
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" onclick="startRead()">开始阅读</button>
+                        <button class="btn-shelf" id="shelfBtn" onclick="addToShelf(${novel.id})">加入书架</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function checkShelfStatus() {
+        fetch('/api/bookshelf/list')
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200 && result.data) {
+                    const found = result.data.find(item => item.novelId == novelId);
+                    if (found) {
+                        const btn = document.getElementById('shelfBtn');
+                        if (btn) {
+                            btn.textContent = '✓ 已加入书架';
+                            btn.className = 'btn-shelf added';
+                            btn.onclick = null;
+                        }
+                    }
+                }
+            })
+            .catch(() => {});
+    }
+
+    function addToShelf(novelId) {
+        fetch('/api/bookshelf/add/' + novelId, { method: 'POST' })
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200) {
+                    const btn = document.getElementById('shelfBtn');
+                    if (btn) {
+                        btn.textContent = '✓ 已加入书架';
+                        btn.className = 'btn-shelf added';
+                        btn.onclick = null;
+                    }
+                } else if (result.code === 401) {
+                    if (confirm('请先登录，是否跳转到登录页面？')) {
+                        window.location.href = '/login';
+                    }
+                }
+            });
+    }
+
+    function loadChapterList() {
+        fetch(`/api/chapter/list/${novelId}`)
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200 && result.data && result.data.length > 0) {
+                    renderChapterList(result.data);
+                } else {
+                    document.getElementById('contentArea').innerHTML =
+                        '<div style="text-align:center;padding:30px;color:#999;">暂无章节</div>';
+                }
+            });
+    }
+
+    function renderChapterList(chapters) {
+        document.getElementById('contentArea').innerHTML = `
+            <h2 class="section-title">📑 章节目录（共${chapters.length}章）</h2>
+            <div class="chapter-list">
+                ${chapters.map(ch => `
+                    <div class="chapter-item" onclick="readChapter(${ch.chapterNo})">
+                        <span class="chapter-title">第${ch.chapterNo}章 ${ch.title}</span>
+                        <span class="chapter-time">${ch.wordCount || 0}字</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function loadChapterContent() {
+        fetch(`/api/chapter/read/${novelId}/${chapterNo}`)
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200 && result.data) {
+                    renderChapterContent(result.data);
+                }
+            });
+    }
+
+    function renderChapterContent(data) {
+        const chapter = data.chapter;
+        const fullContent = chapter.content || '暂无内容';
+        const maxShow = 3000;
+        const isLong = fullContent.length > maxShow;
+        const showContent = isLong ? fullContent.substring(0, maxShow) : fullContent;
+
+        if (chapter.id) {
+            fetch(`/api/bookshelf/progress/${novelId}/${chapter.id}`, { method: 'POST' });
+        }
+
+        document.getElementById('contentArea').innerHTML = `
+            <h2 style="text-align:center;margin-bottom:20px;">
+                第${chapter.chapterNo}章 ${chapter.title}（${fullContent.length}字）
+            </h2>
+            <div class="reader-content" id="readerText">${showContent.replace(/\n/g, '<br>')}</div>
+            ${isLong ? '<div style="text-align:center;margin-top:20px;"><button class="btn-full" onclick="showFull()">📖 展开全文（共' + fullContent.length + '字）</button></div>' : ''}
+            <div class="reader-nav">
+                ${data.prevChapterNo ? `<a href="/reader/${novelId}/${data.prevChapterNo}">← 上一章</a>` : '<span></span>'}
+                <a href="/novel/${novelId}">📑 目录</a>
+                ${data.nextChapterNo ? `<a href="/reader/${novelId}/${data.nextChapterNo}">下一章 →</a>` : '<span></span>'}
+            </div>
+        `;
+        window._fullContent = fullContent;
+    }
+
+    function showFull() {
+        document.getElementById('readerText').innerHTML = window._fullContent.replace(/\n/g, '<br>');
+        const btn = document.querySelector('.btn-full');
+        if (btn) btn.parentElement.remove();
+    }
+
+    // ========== 评论区 ==========
+    function loadComments() {
+        fetch('/api/comment/list/' + novelId)
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 200 && result.data) {
+                    renderComments(result.data);
+                } else {
+                    document.getElementById('commentList').innerHTML = '<p style="text-align:center;color:#999;">暂无评论</p>';
+                }
+            });
+    }
+
+    function renderComments(comments) {
+        if (!comments || comments.length === 0) {
+            document.getElementById('commentList').innerHTML = '<p style="text-align:center;color:#999;">暂无评论</p>';
+            return;
+        }
+        document.getElementById('commentList').innerHTML = comments.map(c => `
+            <div class="comment-item">
+                <div class="comment-header">
+                    <span class="comment-user">${c.username}</span>
+                    <span class="comment-time">${formatTime(c.createTime)}</span>
+                </div>
+                <div class="comment-content">${c.content}</div>
+            </div>
+        `).join('');
+    }
+
+    function submitComment() {
+        const content = document.getElementById('commentInput').value.trim();
+        if (!content) { alert('请输入评论内容'); return; }
+        fetch('/api/comment/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ novelId: parseInt(novelId), content: content })
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.code === 200) {
+                document.getElementById('commentInput').value = '';
+                loadComments();
+            } else if (result.code === 401) {
+                if (confirm('请先登录，是否跳转登录？')) window.location.href = '/login';
+            } else {
+                alert(result.message);
+            }
+        });
+    }
+
+    function startRead() { window.location.href = `/reader/${novelId}/1`; }
+    function readChapter(n) { window.location.href = `/reader/${novelId}/${n}`; }
+</script>
+</body>
+</html>
